@@ -1,10 +1,8 @@
-from flask import Blueprint, render_template, request, redirect, url_for
 from werkzeug.security import generate_password_hash
 from app import db
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import text
-from flask import Blueprint, render_template, request, redirect, url_for
-from flask_login import login_user
+from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask_login import login_user, login_required
 from werkzeug.security import check_password_hash
 from app.models import User
 
@@ -14,12 +12,12 @@ auth_bp = Blueprint('auth', __name__)
 def signup():
     error = None
     if request.method == 'POST':
-        username = request.form['username']
-        email = request.form['email']
+        username = request.form['username'].strip()
+        email = request.form['email'].strip().lower()
         password = request.form['password']
 
         if not username or not email or not password:
-            error = "All fields are required."
+            flash("All fields are required.", "error")
         else:
             try:
                 new_user = User(
@@ -29,10 +27,11 @@ def signup():
                 )
                 db.session.add(new_user)
                 db.session.commit()
-                return redirect(url_for('auth.login'))
+                login_user(new_user)
+                return redirect(url_for('dashboard.dashboard'))
             except IntegrityError:
                 db.session.rollback()
-                error = "Username or email already taken."
+                flash("Username or email already taken.", "error")
 
     return render_template('signup.html', error=error)
 
@@ -51,9 +50,18 @@ def login():
 
         if user and check_password_hash(user.password_hash, password):
             login_user(user)
-            return redirect(url_for('dashboard'))  # Adjust as needed
+            return redirect(url_for('dashboard.dashboard'))  # Adjust as needed
         else:
-            error = "Invalid username/email or password."
+            flash("Invalid username/email or password.", "error")
 
     return render_template('login.html', error=error)
+
+from flask_login import logout_user
+
+@auth_bp.route('/logout')
+@login_required
+def logout():
+    logout_user()
+    flash("You have been logged out.", "success")
+    return redirect(url_for('auth.login'))
 
